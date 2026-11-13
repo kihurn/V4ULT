@@ -82,3 +82,9 @@ Three connection widgets observe the SDK's actual fetch requests:
 Measurements are kept in memory, capped at the latest 1,000 samples, reset on auth-store changes and reload, and record only duration/time/failure flags. No URLs, payloads, tokens or personal content are stored. In-flight samples from an old session are discarded. Development StrictMode may issue additional requests; measurements count what actually happened. Zero samples show unknown latency/error rate, rather than fabricated values. Request activity refreshes every five seconds while Overview is mounted. No extra polling requests are generated for metrics.
 
 CPU/RAM/disk metrics, database-only query execution time, availability history and replication are not exposed by this frontend. They require server instrumentation and an authenticated monitoring API. No random/demo health numbers are presented as live backend data.
+
+## Brand assets (1.2.2)
+
+Place the original files in `public/background.png`, `public/favicon.png`, and `public/logo-transparent.png` before running `npm run build`. Vite copies these files directly to `dist/`. Keep the names unchanged. The transparent logo appears in both login and dashboard headers; the background covers every page; the square artwork supplies the browser favicon and Apple touch icon. The app retains its graphite controls and glass navigation.
+
+These three images reside on the user's Windows PC and were not available as downloadable files to the cloud executor. They must be added locally; the archive contains the integration code, not the original images.

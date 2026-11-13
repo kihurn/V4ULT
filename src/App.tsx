@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { ArrowUpRight, Check, CheckSquare2, ChevronRight, Eye, EyeOff, FileText, Layers3, LoaderCircle, LockKeyhole, LogOut, NotebookPen, Plus, Sparkles } from 'lucide-react'
+import { ArrowUpRight, Check, CheckSquare2, ChevronRight, Eye, EyeOff, FileText, LoaderCircle, LockKeyhole, LogOut, NotebookPen, Plus, Sparkles } from 'lucide-react'
 import { pb, AUTH_COLLECTION } from './lib/pocketbase'
 import { dueLabel, errorMessage, listNotes, listTasks, plainText, serializeDate, statusLabel, statuses, type Note, type Status, type Task } from './lib/records'
 import { Navigation } from './components/Navigation'
@@ -9,7 +9,7 @@ import { LibraryView } from './features/library/LibraryView'
 import { Dialog } from './components/Dialog'
 
 type Session = 'checking'|'signedOut'|'ready'|'offline'
-function Brand(){return <a className="brand" href="/" aria-label="V4ULT home"><Layers3 size={25} strokeWidth={1.5}/><span>V4ULT<span className="brand-dot">.</span></span></a>}
+function Brand(){return <a className="brand" href="/" aria-label="V4ULT home"><img className="brand-logo" src="/logo-transparent.png" width="44" height="44" alt=""/><span>V4ULT<span className="brand-dot">.</span></span></a>}
 function Busy(){return <LoaderCircle size={18} className="spin" aria-label="Loading"/>}
 export default function App(){
  const [session,setSession]=useState<Session>('checking'),[identity,setIdentity]=useState(''),[revision,setRevision]=useState(0)
@@ -18,7 +18,7 @@ export default function App(){
  async function refresh(){if(!pb.authStore.isValid){setSession('signedOut');return}try{await pb.collection(AUTH_COLLECTION).authRefresh();if(active){setIdentity(pb.authStore.record?.id || '');setSession('ready')}}catch(e){if(!active)return;if(typeof e==='object'&&e&&'status' in e&&[401,403].includes(Number(e.status))){pb.authStore.clear();setSession('signedOut')}else setSession('offline')}}
  void refresh();return()=>{active=false;unsubscribe()}
  },[revision])
- return <><div className="ferro-background" aria-hidden="true"><i/><i/><i/><i/></div><div className="backdrop"/>{session==='ready'?<Dashboard key={identity}/>:<main className="login-page"><header><Brand/><span className="eyebrow">YOUR PERSONAL SPACE</span></header>{session==='checking'?<section className="glass login-card"><Busy/><h1>Opening your space.</h1></section>:session==='offline'?<section className="glass login-card"><h1>Let’s reconnect.</h1><p>We couldn’t check your session. Your data will be here when you’re back.</p><button className="primary" onClick={()=>setRevision(x=>x+1)}>Try again</button><button className="text-button" onClick={()=>pb.authStore.clear()}>Use another account</button></section>:<Login/>}<footer className="login-footer"><LockKeyhole size={13}/> A quiet place for your digital life.</footer></main>}</>
+ return <><div className="ferro-background" style={{backgroundImage:"url('/background.png')"}} aria-hidden="true"/><div className="backdrop"/>{session==='ready'?<Dashboard key={identity}/>:<main className="login-page"><header><Brand/><span className="eyebrow">YOUR PERSONAL SPACE</span></header>{session==='checking'?<section className="glass login-card"><Busy/><h1>Opening your space.</h1></section>:session==='offline'?<section className="glass login-card"><h1>Let’s reconnect.</h1><p>We couldn’t check your session. Your data will be here when you’re back.</p><button className="primary" onClick={()=>setRevision(x=>x+1)}>Try again</button><button className="text-button" onClick={()=>pb.authStore.clear()}>Use another account</button></section>:<Login/>}<footer className="login-footer"><LockKeyhole size={13}/> A quiet place for your digital life.</footer></main>}</>
 }
 function Login(){const[email,setEmail]=useState(''),[password,setPassword]=useState(''),[visible,setVisible]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState('')
  async function submit(e:FormEvent){e.preventDefault();if(busy)return;setBusy(true);setError('');try{await pb.collection(AUTH_COLLECTION).authWithPassword(email,password)}catch{setError('Unable to sign in. Check your credentials and connection.')}finally{setBusy(false)}}
