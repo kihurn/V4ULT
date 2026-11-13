@@ -1,1 +1,5 @@
-{"version":"1.2.0","theme":"ferro-graphite-dot-matrix","metrics":"browser-observed-api"}
+{
+  "version": "1.2.1",
+  "theme": "ferro-graphite-dot-matrix",
+  "metrics": "browser-observed-api"
+}
