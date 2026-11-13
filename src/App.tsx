@@ -1,44 +1,822 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { ArrowUpRight, Check, CheckSquare2, ChevronRight, Eye, EyeOff, FileText, LoaderCircle, LockKeyhole, LogOut, NotebookPen, Plus, Sparkles } from 'lucide-react'
-import { pb, AUTH_COLLECTION } from './lib/pocketbase'
-import { dueLabel, errorMessage, listNotes, listTasks, plainText, serializeDate, statusLabel, statuses, type Note, type Status, type Task } from './lib/records'
-import { Navigation } from './components/Navigation'
-import { Overview } from './components/Overview'
-import { DotText } from './components/DotText'
-import { LibraryView } from './features/library/LibraryView'
-import { Dialog } from './components/Dialog'
-
-type Session = 'checking'|'signedOut'|'ready'|'offline'
-function Brand(){return <a className="brand" href="/" aria-label="V4ULT home"><img className="brand-logo" src="/logo-transparent.png" width="44" height="44" alt=""/><span>V4ULT<span className="brand-dot">.</span></span></a>}
-function Busy(){return <LoaderCircle size={18} className="spin" aria-label="Loading"/>}
-export default function App(){
- const [session,setSession]=useState<Session>('checking'),[identity,setIdentity]=useState(''),[revision,setRevision]=useState(0)
- useEffect(()=>{let active=true
- const unsubscribe=pb.authStore.onChange(()=>{if(active){setIdentity(pb.authStore.record?.id || '');setSession(pb.authStore.isValid?'ready':'signedOut')}})
- async function refresh(){if(!pb.authStore.isValid){setSession('signedOut');return}try{await pb.collection(AUTH_COLLECTION).authRefresh();if(active){setIdentity(pb.authStore.record?.id || '');setSession('ready')}}catch(e){if(!active)return;if(typeof e==='object'&&e&&'status' in e&&[401,403].includes(Number(e.status))){pb.authStore.clear();setSession('signedOut')}else setSession('offline')}}
- void refresh();return()=>{active=false;unsubscribe()}
- },[revision])
- return <><div className="ferro-background" style={{backgroundImage:"url('/background.png')"}} aria-hidden="true"/><div className="backdrop"/>{session==='ready'?<Dashboard key={identity}/>:<main className="login-page"><header><Brand/><span className="eyebrow">YOUR PERSONAL SPACE</span></header>{session==='checking'?<section className="glass login-card"><Busy/><h1>Opening your space.</h1></section>:session==='offline'?<section className="glass login-card"><h1>Let’s reconnect.</h1><p>We couldn’t check your session. Your data will be here when you’re back.</p><button className="primary" onClick={()=>setRevision(x=>x+1)}>Try again</button><button className="text-button" onClick={()=>pb.authStore.clear()}>Use another account</button></section>:<Login/>}<footer className="login-footer"><LockKeyhole size={13}/> A quiet place for your digital life.</footer></main>}</>
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import {
+  ArrowUpRight,
+  Check,
+  CheckSquare2,
+  ChevronRight,
+  Eye,
+  EyeOff,
+  FileText,
+  LoaderCircle,
+  LockKeyhole,
+  LogOut,
+  NotebookPen,
+  Plus,
+  Sparkles,
+} from "lucide-react";
+import { pb, AUTH_COLLECTION } from "./lib/pocketbase";
+import {
+  dueLabel,
+  errorMessage,
+  listNotes,
+  listTasks,
+  plainText,
+  serializeDate,
+  statusLabel,
+  statuses,
+  type Note,
+  type Status,
+  type Task,
+} from "./lib/records";
+import { Tags } from "./components/Tags";
+import { Navigation } from "./components/Navigation";
+import { Overview } from "./components/Overview";
+import { DotText } from "./components/DotText";
+import { LibraryView } from "./features/library/LibraryView";
+import { Dialog } from "./components/Dialog";
+type Session = "checking" | "signedOut" | "ready" | "offline";
+function Brand() {
+  return (
+    <a className="brand" href="/" aria-label="V4ULT home">
+      <img
+        className="brand-logo"
+        src="/logo-transparent.png"
+        width="44"
+        height="44"
+        alt=""
+      />
+      <span>
+        V4ULT<span className="brand-dot">.</span>
+      </span>
+    </a>
+  );
 }
-function Login(){const[email,setEmail]=useState(''),[password,setPassword]=useState(''),[visible,setVisible]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState('')
- async function submit(e:FormEvent){e.preventDefault();if(busy)return;setBusy(true);setError('');try{await pb.collection(AUTH_COLLECTION).authWithPassword(email,password)}catch{setError('Unable to sign in. Check your credentials and connection.')}finally{setBusy(false)}}
- return <section className="glass login-card"><div className="small-icon"><LockKeyhole size={22}/></div><p className="eyebrow peach">EVERYTHING, IN ONE PLACE</p><h1>Welcome to<br/>your V4ULT.</h1><p className="muted">A little clarity. A little headspace.<br/>All the things that matter to you.</p><form onSubmit={submit}><label>Email address<input type="email" autoComplete="username" required value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@example.com"/></label><label>Password<div className="password-input"><input type={visible?'text':'password'} autoComplete="current-password" required value={password} onChange={e=>setPassword(e.target.value)} placeholder="Enter your password"/><button type="button" aria-label={visible?'Hide password':'Show password'} onClick={()=>setVisible(!visible)}>{visible?<EyeOff size={18}/>:<Eye size={18}/>}</button></div></label>{error&&<p role="alert" className="error">{error}</p>}<button disabled={busy} className="primary">{busy?<Busy/>:<>Enter your space <ArrowUpRight size={19}/></>}</button></form><div className="login-note"><span className="dot"/> PRIVATE BY NATURE. YOURS BY DESIGN.</div></section>
+function Busy() {
+  return <LoaderCircle size={18} className="spin" aria-label="Loading" />;
 }
-function Dashboard(){
- const[tab,setTab]=useState<'overview'|'tasks'|'notes'|'library'>('overview'),[filter,setFilter]=useState<Status|undefined>(),[tasks,setTasks]=useState<Task[]>([]),[notes,setNotes]=useState<Note[]>([]),[total,setTotal]=useState(0),[page,setPage]=useState(1),[pages,setPages]=useState(0),[loading,setLoading]=useState(true),[error,setError]=useState(''),[refresh,setRefresh]=useState(0),[modal,setModal]=useState<'task'|'note'|Note|null>(null),[pending,setPending]=useState<string[]>([])
- const generation=useRef(0)
- useEffect(()=>{if(tab==='library'||tab==='overview')return;const token=++generation.current;setLoading(true);setError('');setTasks([]);setNotes([]);setPage(1)
- const request=tab==='tasks'?listTasks(1,filter):listNotes(1)
- request.then(result=>{if(token!==generation.current)return;if(tab==='tasks')setTasks(result.items as Task[]);else setNotes(result.items as Note[]);setTotal(result.totalItems);setPages(result.totalPages)}).catch(e=>{if(token===generation.current){setError(errorMessage(e));if(e.status===401)pb.authStore.clear()}}).finally(()=>{if(token===generation.current)setLoading(false)})
- return()=>{generation.current++}
- },[tab,filter,refresh])
- async function more(){const token=generation.current;setLoading(true);try{const result=tab==='tasks'?await listTasks(page+1,filter):await listNotes(page+1);if(token!==generation.current)return;if(tab==='tasks')setTasks(x=>[...x,...result.items as Task[]]);else setNotes(x=>[...x,...result.items as Note[]]);setPage(result.page)}catch(e){if(token===generation.current)setError(errorMessage(e))}finally{if(token===generation.current)setLoading(false)}}
- async function changeStatus(task:Task,status:Status){if(pending.includes(task.id))return;const token=generation.current;setPending(x=>[...x,task.id]);try{await pb.collection('tasks').update(task.id,{status});if(token===generation.current)setRefresh(x=>x+1)}catch(e){if(token===generation.current)setError(errorMessage(e))}finally{setPending(x=>x.filter(id=>id!==task.id))}}
- const name=String(pb.authStore.record?.name || '').split(' ')[0]
- return <main className="dashboard"><header className="topbar"><Brand/><div className="topbar-right"><span className="connection"><span className="dot"/> YOUR SPACE, CONNECTED</span><button aria-label="Sign out" className="icon-button" onClick={()=>pb.authStore.clear()}><LogOut size={19}/></button></div></header><section className="welcome"><p className="eyebrow">{new Date().toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric'}).toUpperCase()}</p><h1 className="dashboard-title"><DotText text="A LITTLE MORE"/><DotText text="HEADSPACE."/></h1><p>{name?`${name}, make`:'Make'} room for what matters. We’ll keep the rest here.</p></section>{tab==='overview'?<Overview navigate={setTab}/>:tab==='library'?<LibraryView/>:<div key={tab} className="collection-page"><div className="overview"><section className="glass summary"><div><p className="eyebrow">{tab==='tasks'?'ON YOUR RADAR':'YOUR COLLECTION'}</p><div className="summary-number"><span><DotText text={loading&&page===1?'—':String(total)}/></span><p>{tab==='tasks'?'tasks':'notes'}<br/><span>{tab==='tasks'?(filter?statusLabel[filter]:'in your space'):'worth keeping'}</span></p></div></div><div className="summary-symbol">{tab==='tasks'?<CheckSquare2 size={42} strokeWidth={1}/>:<NotebookPen size={42} strokeWidth={1}/>}</div><div className="summary-footer"><span className="dot"/><span>{tab==='tasks'?'One thing at a time. You’ve got this.':'Good ideas deserve a place to land.'}</span><Sparkles size={15}/></div></section><section className="glass intention"><span className="eyebrow">A MOMENT OF CLARITY</span><p>Less noise.<br/>More <em>possibility.</em></p><span className="muted">Your mind is for having ideas,<br/>not holding them all.</span><span className="orb"/></section></div><section className="collection"><div className="section-heading"><div><p className="eyebrow">{tab==='tasks'?'SMALL STEPS, FORWARD':'THOUGHTS, COLLECTED'}</p><h2>{tab==='tasks'?'Your tasks':'Your notes'}<span className="count">{total}</span></h2></div><button className="primary compact" onClick={()=>setModal(tab==='tasks'?'task':'note')}><Plus size={18}/>{tab==='tasks'?'Add task':'New note'}</button></div>{tab==='tasks'&&<div className="filters" aria-label="Task status filter">{([undefined,...statuses] as const).map(s=><button key={s||'all'} className={filter===s?'active':''} onClick={()=>setFilter(s)}>{s?statusLabel[s]:'All tasks'}</button>)}</div>}{error&&<div role="alert" className="glass error-box">{error}<button onClick={()=>setRefresh(x=>x+1)}>Retry</button></div>}{loading&&page===1&&!tasks.length&&!notes.length?<div className="glass empty"><Busy/><p>Gathering your {tab}…</p></div>:!error&&!(tab==='tasks'?tasks.length:notes.length)?<div className="glass empty">{tab==='tasks'?<CheckSquare2 size={32} strokeWidth={1}/>:<FileText size={32} strokeWidth={1}/>}<h3>{tab==='tasks'?'A fresh start.':'Room for your next idea.'}</h3><p>{tab==='tasks'?'Add a task and take it one step at a time.':'Save a thought, a plan, or something worth remembering.'}</p><button className="text-button peach" onClick={()=>setModal(tab==='tasks'?'task':'note')}>Create your first {tab==='tasks'?'task':'note'} <Plus size={16}/></button></div>:error&&!(tab==='tasks'?tasks.length:notes.length)?null:tab==='tasks'?<div className="glass task-list">{tasks.map((task,index)=><article className="task-row ascend" style={{animationDelay:`${Math.min(index,5)*35}ms`}} key={task.id}><span className={`status-icon ${task.status}`}>{task.status==='done'?<Check size={17}/>:task.status==='doing'?<span/>:null}</span><div className="task-title"><h3 className={task.status==='done'?'completed':''}>{task.title}</h3><p className={dueLabel(task.due_date).startsWith('Overdue')?'overdue':''}>{dueLabel(task.due_date)}</p></div><label className="sr-only" htmlFor={task.id}>Status for {task.title}</label><select id={task.id} disabled={pending.includes(task.id)} value={task.status} onChange={e=>void changeStatus(task,e.target.value as Status)}>{statuses.map(s=><option key={s} value={s}>{statusLabel[s]}</option>)}</select></article>)}</div>:<div className="notes-grid">{notes.map((note,index)=><button className="glass note-card ascend" style={{animationDelay:`${Math.min(index,5)*35}ms`}} key={note.id} onClick={()=>setModal(note)}><div className="note-top"><FileText size={18}/><ArrowUpRight size={17}/></div><h3>{note.title}</h3><p className="preview">{plainText(note.content)}</p><div className="tags">{note.tags.split(',').filter(Boolean).slice(0,4).map((tag,i)=><span key={i}>{tag.trim()}</span>)}</div><span className="note-date">{new Date(note.created).toLocaleDateString(undefined,{month:'short',day:'numeric'})}</span></button>)}</div>}{page<pages&&<button disabled={loading} className="load-more" onClick={()=>void more()}>{loading?<Busy/>:<>Load more <ChevronRight size={16}/></>}</button>}</section></div>}<footer className="dashboard-footer"><LockKeyhole size={12}/> YOUR LIFE. YOUR DATA. YOUR V4ULT.</footer><Navigation tab={tab} onChange={setTab}/>{modal&&(typeof modal==='object'?<Dialog title={modal.title} onClose={()=>setModal(null)}><p className="note-detail">{plainText(modal.content)}</p><div className="tags">{modal.tags.split(',').filter(Boolean).map((tag,i)=><span key={i}>{tag.trim()}</span>)}</div></Dialog>:<CreateForm kind={modal} onClose={()=>setModal(null)} onSaved={()=>{setModal(null);setRefresh(x=>x+1)}}/>)}</main>
+export default function App() {
+  const [session, setSession] = useState<Session>("checking"),
+    [identity, setIdentity] = useState(""),
+    [revision, setRevision] = useState(0);
+  useEffect(() => {
+    let active = true;
+    const unsubscribe = pb.authStore.onChange(() => {
+      if (active) {
+        setIdentity(pb.authStore.record?.id || "");
+        setSession(pb.authStore.isValid ? "ready" : "signedOut");
+      }
+    });
+    async function refresh() {
+      if (!pb.authStore.isValid) {
+        setSession("signedOut");
+        return;
+      }
+      try {
+        await pb.collection(AUTH_COLLECTION).authRefresh();
+        if (active) {
+          setIdentity(pb.authStore.record?.id || "");
+          setSession("ready");
+        }
+      } catch (e) {
+        if (!active) {
+          return;
+        }
+        if (
+          typeof e === "object" &&
+          e &&
+          "status" in e &&
+          [401, 403].includes(Number(e.status))
+        ) {
+          pb.authStore.clear();
+          setSession("signedOut");
+        } else {
+          setSession("offline");
+        }
+      }
+    }
+    void refresh();
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, [revision]);
+  function renderSession() {
+    if (session === "checking") {
+      return (
+        <section className="glass login-card">
+          <Busy />
+          <h1>Opening your space.</h1>
+        </section>
+      );
+    }
+    if (session === "offline") {
+      return (
+        <section className="glass login-card">
+          <h1>Let’s reconnect.</h1>
+          <p>
+            We couldn’t check your session. Your data will be here when you’re
+            back.
+          </p>
+          <button
+            type="button"
+            className="primary"
+            onClick={() => setRevision((x) => x + 1)}
+          >
+            Try again
+          </button>
+          <button
+            type="button"
+            className="text-button"
+            onClick={() => pb.authStore.clear()}
+          >
+            Use another account
+          </button>
+        </section>
+      );
+    }
+    return <Login />;
+  }
+  return (
+    <>
+      <div
+        className="ferro-background"
+        style={{ backgroundImage: "url('/background.png')" }}
+        aria-hidden="true"
+      />
+      <div className="backdrop" />
+      {session === "ready" ? (
+        <Dashboard key={identity} />
+      ) : (
+        <main className="login-page">
+          <header>
+            <Brand />
+            <span className="eyebrow">YOUR PERSONAL SPACE</span>
+          </header>
+          {renderSession()}
+          <footer className="login-footer">
+            <LockKeyhole size={13} /> A quiet place for your digital life.
+          </footer>
+        </main>
+      )}
+    </>
+  );
 }
-function CreateForm({kind,onClose,onSaved}:{kind:'task'|'note';onClose:()=>void;onSaved:()=>void}){
- const[title,setTitle]=useState(''),[content,setContent]=useState(''),[tags,setTags]=useState(''),[date,setDate]=useState(''),[status,setStatus]=useState<Status>('todo'),[busy,setBusy]=useState(false),[error,setError]=useState('');const alive=useRef(true);useEffect(()=>{alive.current=true;return()=>{alive.current=false}},[])
- async function save(e:FormEvent){e.preventDefault();if(busy||!title.trim())return;setBusy(true);setError('');try{await pb.collection(kind==='task'?'tasks':'notes').create(kind==='task'?{title:title.trim(),status,due_date:serializeDate(date),owner:pb.authStore.record?.id}:{title:title.trim(),content,tags,owner:pb.authStore.record?.id});if(alive.current)onSaved()}catch(e){if(alive.current)setError(errorMessage(e))}finally{if(alive.current)setBusy(false)}}
- return <Dialog title={kind==='task'?'A small step forward.':'A thought worth keeping.'} onClose={onClose}><form onSubmit={save}><label>Title<input autoFocus required maxLength={250} value={title} onChange={e=>setTitle(e.target.value)} placeholder={kind==='task'?'What’s on your mind?':'Give your idea a name'}/></label>{kind==='task'?<div className="form-grid"><label>Status<select value={status} onChange={e=>setStatus(e.target.value as Status)}>{statuses.map(s=><option key={s} value={s}>{statusLabel[s]}</option>)}</select></label><label>Due date<input type="date" value={date} onChange={e=>setDate(e.target.value)}/></label></div>:<><label>Note<textarea rows={6} value={content} onChange={e=>setContent(e.target.value)} placeholder="Let your thoughts land here…"/></label><label>Tags <span className="muted">(comma separated)</span><input value={tags} onChange={e=>setTags(e.target.value)} placeholder="ideas, personal"/></label></>}{error&&<p role="alert" className="error">{error}</p>}<button className="primary" disabled={busy||!title.trim()}>{busy?<Busy/>:<>Save {kind}<ArrowUpRight size={18}/></>}</button></form></Dialog>
+function Login() {
+  const [email, setEmail] = useState(""),
+    [password, setPassword] = useState(""),
+    [visible, setVisible] = useState(false),
+    [busy, setBusy] = useState(false),
+    [error, setError] = useState("");
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    if (busy) {
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      await pb.collection(AUTH_COLLECTION).authWithPassword(email, password);
+    } catch {
+      setError("Unable to sign in. Check your credentials and connection.");
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <section className="glass login-card">
+      <div className="small-icon">
+        <LockKeyhole size={22} />
+      </div>
+      <p className="eyebrow peach">EVERYTHING, IN ONE PLACE</p>
+      <h1>
+        Welcome to
+        <br />
+        your V4ULT.
+      </h1>
+      <p className="muted">
+        A little clarity. A little headspace.
+        <br />
+        All the things that matter to you.
+      </p>
+      <form onSubmit={submit}>
+        <label>
+          Email address
+          <input
+            type="email"
+            autoComplete="username"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@example.com"
+          />
+        </label>
+        <label>
+          Password
+          <div className="password-input">
+            <input
+              type={visible ? "text" : "password"}
+              autoComplete="current-password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Enter your password"
+            />
+            <button
+              type="button"
+              aria-label={visible ? "Hide password" : "Show password"}
+              onClick={() => setVisible(!visible)}
+            >
+              {visible ? <EyeOff size={18} /> : <Eye size={18} />}
+            </button>
+          </div>
+        </label>
+        {error && (
+          <p role="alert" className="error">
+            {error}
+          </p>
+        )}
+        <button type="submit" disabled={busy} className="primary">
+          {busy ? (
+            <Busy />
+          ) : (
+            <>
+              Enter your space <ArrowUpRight size={19} />
+            </>
+          )}
+        </button>
+      </form>
+      <div className="login-note">
+        <span className="dot" /> PRIVATE BY NATURE. YOURS BY DESIGN.
+      </div>
+    </section>
+  );
+}
+function Dashboard() {
+  const [tab, setTab] = useState<"overview" | "tasks" | "notes" | "library">(
+      "overview",
+    ),
+    [filter, setFilter] = useState<Status | undefined>(),
+    [tasks, setTasks] = useState<Task[]>([]),
+    [notes, setNotes] = useState<Note[]>([]),
+    [total, setTotal] = useState(0),
+    [page, setPage] = useState(1),
+    [pages, setPages] = useState(0),
+    [loading, setLoading] = useState(true),
+    [error, setError] = useState(""),
+    [refresh, setRefresh] = useState(0),
+    [modal, setModal] = useState<"task" | "note" | Note | null>(null),
+    [pending, setPending] = useState<string[]>([]);
+  const generation = useRef(0);
+  useEffect(() => {
+    if (tab === "library" || tab === "overview") {
+      return;
+    }
+    const token = ++generation.current;
+    setLoading(true);
+    setError("");
+    setTasks([]);
+    setNotes([]);
+    setPage(1);
+    const request = tab === "tasks" ? listTasks(1, filter) : listNotes(1);
+    request
+      .then((result) => {
+        if (token !== generation.current) {
+          return;
+        }
+        if (tab === "tasks") {
+          setTasks(result.items as Task[]);
+        } else {
+          setNotes(result.items as Note[]);
+        }
+        setTotal(result.totalItems);
+        setPages(result.totalPages);
+      })
+      .catch((e) => {
+        if (token === generation.current) {
+          setError(errorMessage(e));
+          if (e.status === 401) {
+            pb.authStore.clear();
+          }
+        }
+      })
+      .finally(() => {
+        if (token === generation.current) {
+          setLoading(false);
+        }
+      });
+    return () => {
+      generation.current++;
+    };
+  }, [tab, filter, refresh]);
+  async function more() {
+    const token = generation.current;
+    setLoading(true);
+    try {
+      const result =
+        tab === "tasks"
+          ? await listTasks(page + 1, filter)
+          : await listNotes(page + 1);
+      if (token !== generation.current) {
+        return;
+      }
+      if (tab === "tasks") {
+        setTasks((x) => [...x, ...(result.items as Task[])]);
+      } else {
+        setNotes((x) => [...x, ...(result.items as Note[])]);
+      }
+      setPage(result.page);
+    } catch (e) {
+      if (token === generation.current) {
+        setError(errorMessage(e));
+      }
+    } finally {
+      if (token === generation.current) {
+        setLoading(false);
+      }
+    }
+  }
+  async function changeStatus(task: Task, status: Status) {
+    if (pending.includes(task.id)) {
+      return;
+    }
+    const token = generation.current;
+    setPending((x) => [...x, task.id]);
+    try {
+      await pb.collection("tasks").update(task.id, { status });
+      if (token === generation.current) {
+        setRefresh((x) => x + 1);
+      }
+    } catch (e) {
+      if (token === generation.current) {
+        setError(errorMessage(e));
+      }
+    } finally {
+      setPending((x) => x.filter((id) => id !== task.id));
+    }
+  }
+  const name = String(pb.authStore.record?.name || "").split(" ")[0];
+  const taskSummaryLabel = filter ? statusLabel[filter] : "in your space";
+  function renderRecords() {
+    const recordCount = tab === "tasks" ? tasks.length : notes.length;
+    if (loading && page === 1 && !tasks.length && !notes.length) {
+      return (
+        <div className="glass empty">
+          <Busy />
+          <p>Gathering your {tab}…</p>
+        </div>
+      );
+    }
+    if (!error && !recordCount) {
+      return (
+        <div className="glass empty">
+          {tab === "tasks" ? (
+            <CheckSquare2 size={32} strokeWidth={1} />
+          ) : (
+            <FileText size={32} strokeWidth={1} />
+          )}
+          <h3>
+            {tab === "tasks" ? "A fresh start." : "Room for your next idea."}
+          </h3>
+          <p>
+            {tab === "tasks"
+              ? "Add a task and take it one step at a time."
+              : "Save a thought, a plan, or something worth remembering."}
+          </p>
+          <button
+            type="button"
+            className="text-button peach"
+            onClick={() => setModal(tab === "tasks" ? "task" : "note")}
+          >
+            Create your first {tab === "tasks" ? "task" : "note"}{" "}
+            <Plus size={16} />
+          </button>
+        </div>
+      );
+    }
+    if (error && !recordCount) {
+      return null;
+    }
+    if (tab === "tasks") {
+      return (
+        <div className="glass task-list">
+          {tasks.map((task, index) => (
+            <article
+              className="task-row ascend"
+              style={{ animationDelay: `${Math.min(index, 5) * 35}ms` }}
+              key={task.id}
+            >
+              <span className={`status-icon ${task.status}`}>
+                <TaskStatusIcon status={task.status} />
+              </span>
+              <div className="task-title">
+                <h3 className={task.status === "done" ? "completed" : ""}>
+                  {task.title}
+                </h3>
+                <p
+                  className={
+                    dueLabel(task.due_date).startsWith("Overdue")
+                      ? "overdue"
+                      : ""
+                  }
+                >
+                  {dueLabel(task.due_date)}
+                </p>
+              </div>
+              <label className="sr-only" htmlFor={task.id}>
+                Status for {task.title}
+              </label>
+              <select
+                id={task.id}
+                disabled={pending.includes(task.id)}
+                value={task.status}
+                onChange={(e) =>
+                  void changeStatus(task, e.target.value as Status)
+                }
+              >
+                {statuses.map((s) => (
+                  <option key={s} value={s}>
+                    {statusLabel[s]}
+                  </option>
+                ))}
+              </select>
+            </article>
+          ))}
+        </div>
+      );
+    }
+    return (
+      <div className="notes-grid">
+        {notes.map((note, index) => (
+          <button
+            type="button"
+            className="glass note-card ascend"
+            style={{ animationDelay: `${Math.min(index, 5) * 35}ms` }}
+            key={note.id}
+            onClick={() => setModal(note)}
+          >
+            <div className="note-top">
+              <FileText size={18} />
+              <ArrowUpRight size={17} />
+            </div>
+            <h3>{note.title}</h3>
+            <p className="preview">{plainText(note.content)}</p>
+            <Tags value={note.tags} limit={4} />
+            <span className="note-date">
+              {new Date(note.created).toLocaleDateString(undefined, {
+                month: "short",
+                day: "numeric",
+              })}
+            </span>
+          </button>
+        ))}
+      </div>
+    );
+  }
+  function renderPage() {
+    if (tab === "overview") {
+      return <Overview navigate={setTab} />;
+    }
+    if (tab === "library") {
+      return <LibraryView />;
+    }
+    return (
+      <div key={tab} className="collection-page">
+        <div className="overview">
+          <section className="glass summary">
+            <div>
+              <p className="eyebrow">
+                {tab === "tasks" ? "ON YOUR RADAR" : "YOUR COLLECTION"}
+              </p>
+              <div className="summary-number">
+                <span>
+                  <DotText text={loading && page === 1 ? "—" : String(total)} />
+                </span>
+                <p>
+                  {tab === "tasks" ? "tasks" : "notes"}
+                  <br />
+                  <span>
+                    {tab === "tasks" ? taskSummaryLabel : "worth keeping"}
+                  </span>
+                </p>
+              </div>
+            </div>
+            <div className="summary-symbol">
+              {tab === "tasks" ? (
+                <CheckSquare2 size={42} strokeWidth={1} />
+              ) : (
+                <NotebookPen size={42} strokeWidth={1} />
+              )}
+            </div>
+            <div className="summary-footer">
+              <span className="dot" />
+              <span>
+                {tab === "tasks"
+                  ? "One thing at a time. You’ve got this."
+                  : "Good ideas deserve a place to land."}
+              </span>
+              <Sparkles size={15} />
+            </div>
+          </section>
+          <section className="glass intention">
+            <span className="eyebrow">A MOMENT OF CLARITY</span>
+            <p>
+              Less noise.
+              <br />
+              More <em>possibility.</em>
+            </p>
+            <span className="muted">
+              Your mind is for having ideas,
+              <br />
+              not holding them all.
+            </span>
+            <span className="orb" />
+          </section>
+        </div>
+        <section className="collection">
+          <div className="section-heading">
+            <div>
+              <p className="eyebrow">
+                {tab === "tasks"
+                  ? "SMALL STEPS, FORWARD"
+                  : "THOUGHTS, COLLECTED"}
+              </p>
+              <h2>
+                {tab === "tasks" ? "Your tasks" : "Your notes"}
+                <span className="count">{total}</span>
+              </h2>
+            </div>
+            <button
+              type="button"
+              className="primary compact"
+              onClick={() => setModal(tab === "tasks" ? "task" : "note")}
+            >
+              <Plus size={18} />
+              {tab === "tasks" ? "Add task" : "New note"}
+            </button>
+          </div>
+          {tab === "tasks" && (
+            <div className="filters" aria-label="Task status filter">
+              {([undefined, ...statuses] as const).map((s) => (
+                <button
+                  type="button"
+                  key={s || "all"}
+                  className={filter === s ? "active" : ""}
+                  onClick={() => setFilter(s)}
+                >
+                  {s ? statusLabel[s] : "All tasks"}
+                </button>
+              ))}
+            </div>
+          )}
+          {error && (
+            <div role="alert" className="glass error-box">
+              {error}
+              <button type="button" onClick={() => setRefresh((x) => x + 1)}>
+                Retry
+              </button>
+            </div>
+          )}
+          {renderRecords()}
+          {page < pages && (
+            <button
+              type="button"
+              disabled={loading}
+              className="load-more"
+              onClick={() => void more()}
+            >
+              {loading ? (
+                <Busy />
+              ) : (
+                <>
+                  Load more <ChevronRight size={16} />
+                </>
+              )}
+            </button>
+          )}
+        </section>
+      </div>
+    );
+  }
+  return (
+    <main className="dashboard">
+      <header className="topbar">
+        <Brand />
+        <div className="topbar-right">
+          <span className="connection">
+            <span className="dot" /> YOUR SPACE, CONNECTED
+          </span>
+          <button
+            type="button"
+            aria-label="Sign out"
+            className="icon-button"
+            onClick={() => pb.authStore.clear()}
+          >
+            <LogOut size={19} />
+          </button>
+        </div>
+      </header>
+      <section className="welcome">
+        <p className="eyebrow">
+          {new Date()
+            .toLocaleDateString(undefined, {
+              weekday: "long",
+              month: "long",
+              day: "numeric",
+            })
+            .toUpperCase()}
+        </p>
+        <h1 className="dashboard-title">
+          <DotText text="A LITTLE MORE" />
+          <DotText text="HEADSPACE." />
+        </h1>
+        <p>
+          {name ? `${name}, make` : "Make"} room for what matters. We’ll keep
+          the rest here.
+        </p>
+      </section>
+      {renderPage()}
+      <footer className="dashboard-footer">
+        <LockKeyhole size={12} /> YOUR LIFE. YOUR DATA. YOUR V4ULT.
+      </footer>
+      <Navigation tab={tab} onChange={setTab} />
+      {modal &&
+        (typeof modal === "object" ? (
+          <Dialog title={modal.title} onClose={() => setModal(null)}>
+            <p className="note-detail">{plainText(modal.content)}</p>
+            <Tags value={modal.tags} />
+          </Dialog>
+        ) : (
+          <CreateForm
+            kind={modal}
+            onClose={() => setModal(null)}
+            onSaved={() => {
+              setModal(null);
+              setRefresh((x) => x + 1);
+            }}
+          />
+        ))}
+    </main>
+  );
+}
+function CreateForm({
+  kind,
+  onClose,
+  onSaved,
+}: Readonly<{
+  kind: "task" | "note";
+  onClose: () => void;
+  onSaved: () => void;
+}>) {
+  const [title, setTitle] = useState(""),
+    [content, setContent] = useState(""),
+    [tags, setTags] = useState(""),
+    [date, setDate] = useState(""),
+    [status, setStatus] = useState<Status>("todo"),
+    [busy, setBusy] = useState(false),
+    [error, setError] = useState("");
+  const alive = useRef(true);
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+    };
+  }, []);
+  async function save(e: FormEvent) {
+    e.preventDefault();
+    if (busy || !title.trim()) {
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      await pb
+        .collection(kind === "task" ? "tasks" : "notes")
+        .create(
+          kind === "task"
+            ? {
+                title: title.trim(),
+                status,
+                due_date: serializeDate(date),
+                owner: pb.authStore.record?.id,
+              }
+            : {
+                title: title.trim(),
+                content,
+                tags,
+                owner: pb.authStore.record?.id,
+              },
+        );
+      if (alive.current) {
+        onSaved();
+      }
+    } catch (e) {
+      if (alive.current) {
+        setError(errorMessage(e));
+      }
+    } finally {
+      if (alive.current) {
+        setBusy(false);
+      }
+    }
+  }
+  return (
+    <Dialog
+      title={
+        kind === "task" ? "A small step forward." : "A thought worth keeping."
+      }
+      onClose={onClose}
+    >
+      <form onSubmit={save}>
+        <label>
+          Title
+          <input
+            required
+            maxLength={250}
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder={
+              kind === "task" ? "What’s on your mind?" : "Give your idea a name"
+            }
+          />
+        </label>
+        {kind === "task" ? (
+          <div className="form-grid">
+            <label>
+              Status
+              <select
+                value={status}
+                onChange={(e) => setStatus(e.target.value as Status)}
+              >
+                {statuses.map((s) => (
+                  <option key={s} value={s}>
+                    {statusLabel[s]}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Due date
+              <input
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+              />
+            </label>
+          </div>
+        ) : (
+          <>
+            <label>
+              Note
+              <textarea
+                rows={6}
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                placeholder="Let your thoughts land here…"
+              />
+            </label>
+            <label>
+              Tags <span className="muted">(comma separated)</span>
+              <input
+                value={tags}
+                onChange={(e) => setTags(e.target.value)}
+                placeholder="ideas, personal"
+              />
+            </label>
+          </>
+        )}
+        {error && (
+          <p role="alert" className="error">
+            {error}
+          </p>
+        )}
+        <button
+          type="submit"
+          className="primary"
+          disabled={busy || !title.trim()}
+        >
+          {busy ? (
+            <Busy />
+          ) : (
+            <>
+              Save {kind}
+              <ArrowUpRight size={18} />
+            </>
+          )}
+        </button>
+      </form>
+    </Dialog>
+  );
+}
+function TaskStatusIcon({
+  status,
+}: Readonly<{
+  status: Status;
+}>) {
+  if (status === "done") {
+    return <Check size={17} />;
+  }
+  if (status === "doing") {
+    return <span />;
+  }
+  return null;
 }

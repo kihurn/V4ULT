@@ -25,5 +25,47 @@ test('Library creates structured records, edits checklists, searches and deletes
  await page.getByLabel('Search library').fill('');await page.getByRole('button',{name:/Event.*Dentist/}).click();await page.getByRole('button',{name:'Delete item',exact:true}).click();await page.getByRole('button',{name:'Keep item'}).click();await expect(page.getByRole('dialog')).toBeVisible();await page.getByRole('button',{name:'Delete item',exact:true}).click();await page.getByRole('button',{name:'Delete permanently'}).click();await expect(page.getByRole('heading',{name:'Dentist',exact:true})).toHaveCount(0)
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true)
  await expect(page.getByText('Gathering your library…')).toHaveCount(0);await expect(page.getByRole('heading',{name:'Packing list'})).toBeVisible();await page.screenshot({path:'/tmp/v4ult-library-green.png',fullPage:true})
- await page.emulateMedia({reducedMotion:'reduce'});expect(await page.locator('.widget').count()).toBe(0)
+ await page.emulateMedia({reducedMotion:'reduce'});await expect(page.locator('.widget')).toHaveCount(0)
+})
+
+test('removing editor rows preserves surviving inputs and saves only schema fields', async ({page}) => {
+ const token=`e30.${Buffer.from(JSON.stringify({exp:Math.floor(Date.now()/1000)+3600})).toString('base64url')}.sig`
+ let saved:any
+ await page.route('**/api/**', route => {
+  const request=route.request()
+  if(request.url().includes('auth-'))return route.fulfill({json:{token,record:{id:'user123',collectionId:'users',collectionName:'users'}}})
+  if(request.method()==='POST'){
+   saved=request.postDataJSON()
+   return route.fulfill({json:{...saved,id:'item1'}})
+  }
+  return route.fulfill({json:{page:1,totalPages:0,totalItems:0,items:[]}})
+ })
+ await page.goto('/')
+ await page.getByLabel('Email address').fill('test@example.com')
+ await page.getByLabel('Password',{exact:true}).fill('password')
+ await page.getByRole('button',{name:'Enter your space'}).click()
+ await page.getByRole('navigation').getByRole('button',{name:'Library',exact:true}).click()
+ await page.getByRole('button',{name:'Add item',exact:true}).click()
+ await page.getByLabel('Title',{exact:true}).fill('Stable rows')
+ await page.getByRole('combobox',{name:'Item type',exact:true}).selectOption('checklist')
+ for(const label of ['Add detail','Add checklist item']){
+  await page.getByRole('button',{name:label,exact:true}).click()
+  await page.getByRole('button',{name:label,exact:true}).click()
+ }
+ await page.getByLabel('Field name 2',{exact:true}).fill('location')
+ await page.getByLabel('Field value 2',{exact:true}).fill('Kuala Lumpur')
+ await page.getByLabel('Checklist item 2',{exact:true}).fill('Keep this')
+ await page.getByLabel('Complete item 2',{exact:true}).check()
+ const field=await page.getByLabel('Field value 2',{exact:true}).elementHandle()
+ const checklist=await page.getByLabel('Checklist item 2',{exact:true}).elementHandle()
+ await page.getByRole('button',{name:'Remove field 1',exact:true}).click()
+ await page.getByRole('button',{name:'Remove checklist item 1',exact:true}).click()
+ await expect(page.getByLabel('Field value 1',{exact:true})).toHaveValue('Kuala Lumpur')
+ await expect(page.getByLabel('Checklist item 1',{exact:true})).toHaveValue('Keep this')
+ expect(await field!.evaluate(el=>el===document.querySelector('[aria-label="Field value 1"]'))).toBe(true)
+ expect(await checklist!.evaluate(el=>el===document.querySelector('[aria-label="Checklist item 1"]'))).toBe(true)
+ await page.getByRole('button',{name:'Save item',exact:true}).click()
+ await expect(page.getByRole('dialog')).toHaveCount(0)
+ expect(saved.data.fields).toEqual([{key:'location',value:'Kuala Lumpur'}])
+ expect(saved.data.checklist).toEqual([{text:'Keep this',done:true}])
 })
