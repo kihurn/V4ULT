@@ -1,1 +1,2 @@
-:root{--ink:#0b1626;--text:#fff;--text-unit:rgba(255,255,255,.85);--text-dim:rgba(255,255,255,.65);--accent:#ffc891;--glass-tint:rgba(18,16,32,.24);--radius:32px;--glass-blur:40px;--rim-bright:rgba(255,255,255,.8);--rim-mid:rgba(255,255,255,.35);--rim-soft:rgba(255,255,255,.06);--rim-low:rgba(255,255,255,.3);--shadow:rgba(4,8,20,.28);--font:'Inter',system-ui,sans-serif}
+/* Ferro-inspired materials; responsive app layout instead of a scaled demo stage. */
+:root{--ink:#161719;--text:#f2f1ee;--text-unit:rgba(242,241,238,.85);--text-dim:rgba(242,241,238,.56);--accent:#f2f1ee;--glass-tint:rgba(22,23,25,.78);--radius:26px;--glass-blur:28px;--shadow:rgba(0,0,0,.38);--font:'Inter',system-ui,sans-serif;--ease-out:cubic-bezier(.23,1,.32,1)}

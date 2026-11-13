@@ -1,6 +1,6 @@
 # V4ULT
 
-A React/TypeScript personal Tasks and Notes SPA, designed for mobile Safari and served by PocketBase. Includes a glass interface, keyboard-accessible dialogs, password login, paginated lists, task status updates, and note creation/detail views.
+A React/TypeScript personal information SPA with Tasks, Notes, and a flexible Library, designed for mobile Safari and served by PocketBase. Includes a glass interface, keyboard-accessible dialogs, password login, paginated lists, task status updates, and note creation/detail views.
 
 ## Develop
 
@@ -57,4 +57,28 @@ cp -R dist/. /path/to/pb_public/
 
 Copy the **contents** of dist, including index.html and assets, into pb_public. Preserve pb_data and PocketBase configuration. The UI uses tabs at `/`, so no client-side deep-route fallback is required.
 
-The exact reference portraits load from assets.uberdesigner.ai and Inter from Google Fonts. If blocked or offline, the navy background and system font remain usable. Portrait URLs were preserved from the supplied style prompt; this environment currently blocks that host with HTTP 403.
+The background uses softly lit charcoal surfaces and subtle grain. Compact Ferro-inspired glass widgets, recessed controls and dot-matrix SVG headings adapt to mobile screens. Widget loading entrances and progress bars respect reduced motion. No background image request is needed. Inter loads from Google Fonts with a system-font fallback. Design skills from https://github.com/emilkowalski/skills are installed in .agents/skills; the pinned revision is recorded in .agents/skills/EMIL-SOURCE.md.
+
+## Library and AI assistant foundation
+
+Library stores personal facts, upcoming events, checklists, links, and other information in the new owner-scoped `items` collection. Supports search, type filters, labeled details, creation, editing, and confirmed deletion. Existing Tasks and Notes stay compatible.
+
+**Before using Library on your server**, follow [the PocketBase setup and assistant API guide](docs/POCKETBASE-LIBRARY.md). The included migration was validated on an isolated PocketBase 0.40.6 instance, including cross-user access denial. No live backend was changed. Your model can read this data through a server-side connector; AI chat, file uploads, and reminder delivery are not implemented.
+
+## Build identity
+
+Current release: **1.2.0**, Ferro-inspired graphite widgets, dot-matrix headings, and off-white controls. After replacing pb_public contents from dist, open `/version.json` on the same PocketBase host. It must show `1.2.0` and `ferro-graphite-dot-matrix`; use a hard refresh if the old gradient UI persists. Copy both bundled migration files into the server pb_migrations folder and run migrate up after backup if collections are missing.
+
+## Overview and connection metrics
+
+Overview is the landing tab. Real PocketBase counts power the Tasks, Notes, Library and task-balance widgets. Upcoming events come from Library, filtered to future starts_at and ordered by date. Refresh reloads these totals; unavailable collections show an explicit setup message rather than zero data.
+
+Three connection widgets observe the SDK's actual fetch requests:
+
+- API response time: average and peak elapsed milliseconds until response headers arrive, including network time.
+- Request activity: completed requests in the last 60 seconds from this browser tab, not server-wide QPS/TPS.
+- Request error rate: HTTP non-success responses and network failures divided by observed requests. Aborted requests are excluded. Rejected user inputs can count as HTTP errors, so this is not a database-engine error counter.
+
+Measurements are kept in memory, capped at the latest 1,000 samples, reset on auth-store changes and reload, and record only duration/time/failure flags. No URLs, payloads, tokens or personal content are stored. In-flight samples from an old session are discarded. Development StrictMode may issue additional requests; measurements count what actually happened. Zero samples show unknown latency/error rate, rather than fabricated values. Request activity refreshes every five seconds while Overview is mounted. No extra polling requests are generated for metrics.
+
+CPU/RAM/disk metrics, database-only query execution time, availability history and replication are not exposed by this frontend. They require server instrumentation and an authenticated monitoring API. No random/demo health numbers are presented as live backend data.

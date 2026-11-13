@@ -15,4 +15,4 @@ export function dueLabel(value: string) {
 }
 export const listTasks = (page: number, status?: Status) => pb.collection('tasks').getList<Task>(page, 50, { sort: '-created', filter: status ? pb.filter('status = {:status}', {status}) : '', requestKey: null })
 export const listNotes = (page: number) => pb.collection('notes').getList<Note>(page, 50, { sort: '-created', requestKey: null })
-export function errorMessage(error: unknown) { return error instanceof Error ? error.message : 'Something went wrong. Please try again.' }
+export function errorMessage(error: unknown) { return error instanceof Error ? (error.message.includes('Missing collection context') ? 'A required collection is missing. Apply the included PocketBase migrations, then retry.' : error.message) : 'Something went wrong. Please try again.' }

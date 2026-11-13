@@ -15,7 +15,7 @@ test('auth, task lifecycle, notes, failed writes and mobile layout', async ({pag
  await page.goto('/')
  await page.getByLabel('Email address').fill('test@example.com');await page.getByLabel('Password',{exact:true}).fill('password123')
  await page.getByRole('button',{name:'Enter your space'}).click()
- await expect(page.getByRole('heading',{name:'Your tasks'})).toBeVisible()
+ await page.getByRole('button',{name:'Tasks',exact:true}).click();await expect(page.getByRole('heading',{name:'Your tasks'})).toBeVisible()
  await page.getByRole('button',{name:'Add task'}).click();await page.getByLabel('Title',{exact:true}).fill('Plan the weekend');await page.getByLabel('Due date').fill('2026-11-14');await page.getByRole('button',{name:'Save task'}).click()
  await expect(page.getByRole('heading',{name:'Plan the weekend'})).toBeVisible()
  await page.getByLabel('Status for Plan the weekend').selectOption('doing');await expect(page.getByLabel('Status for Plan the weekend')).toHaveValue('doing')
@@ -25,7 +25,7 @@ test('auth, task lifecycle, notes, failed writes and mobile layout', async ({pag
  await page.getByRole('button',{name:'Close dialog'}).click()
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true)
  await page.screenshot({path:'/tmp/v4ult-mobile.png',fullPage:true})
- await page.reload();await expect(page.getByRole('heading',{name:'Your tasks'})).toBeVisible()
+ await page.reload();await page.getByRole('button',{name:'Tasks',exact:true}).click();await expect(page.getByRole('heading',{name:'Your tasks'})).toBeVisible()
  await page.getByRole('button',{name:'Sign out'}).click();await expect(page.getByRole('button',{name:'Enter your space'})).toBeVisible()
 })
 test('login remains usable at phone, landscape, tablet and desktop sizes',async({page})=>{
